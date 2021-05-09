@@ -1,0 +1,31 @@
+{
+    "name": "scilla-dev",
+    "version": "1.0.0",
+    "description": "",
+    "main": "src/index.ts",
+    "scripts": {
+        "dev": "nodemon",
+        "compile": "ts-node src/index"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/QVote/ScillaDev.git"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "bugs": {
+        "url": "https://github.com/QVote/ScillaDev/issues"
+    },
+    "homepage": "https://github.com/QVote/ScillaDev#readme",
+    "devDependencies": {
+        "@types/node": "^14.14.41",
+        "@typescript-eslint/eslint-plugin": "^4.22.0",
+        "@typescript-eslint/parser": "^4.22.0",
+        "eslint": "^7.24.0",
+        "nodemon": "^2.0.7",
+        "prettier": "^2.2.1",
+        "ts-node": "^9.1.1",
+        "typescript": "^4.2.4"
+    }
+}

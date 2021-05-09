@@ -1,0 +1,5 @@
+{
+    "watch": ["src/"],
+    "ext": "scilla,scillib",
+    "exec": "npm run compile && scilla-checker -gaslimit 10000 -libdir /scilla/0/src/stdlib out/index.scilla"
+}

@@ -1,0 +1,28 @@
+type Error =
+| AdminValidationFailed
+| StagingAdminNotExist
+| StagingAdminValidationFailed
+| WrongTokenImplementationAddress
+
+let make_error =
+fun (result: Error) =>
+let result_code =
+match result with
+| AdminValidationFailed => Int32 -1
+| StagingAdminNotExist => Int32 -2
+| StagingAdminValidationFailed => Int32 -3
+| WrongTokenImplementationAddress => Int32 -4
+end
+in
+{ _exception: "Error"; code: result_code }
+
+let transfer_tag = "Transfer"
+
+let addfunds_tag = "AddFunds"
+
+let one_msg =
+fun (m : Message) =>
+let e = Nil {Message} in
+Cons {Message} m e
+
+let zero = Uint128 0

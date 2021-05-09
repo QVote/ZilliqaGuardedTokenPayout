@@ -1,0 +1,164 @@
+scilla_version 0
+import ListUtils IntUtils PairUtils
+library TokenPayment
+
+type Error =
+| AdminValidationFailed
+| StagingAdminNotExist
+| StagingAdminValidationFailed
+| WrongTokenImplementationAddress
+
+let make_error =
+fun (result: Error) =>
+let result_code =
+match result with
+| AdminValidationFailed => Int32 -1
+| StagingAdminNotExist => Int32 -2
+| StagingAdminValidationFailed => Int32 -3
+| WrongTokenImplementationAddress => Int32 -4
+end
+in
+{ _exception: "Error"; code: result_code }
+
+let zero = Uint128 0
+let transfer_tag = "Transfer"
+
+let one_msg =
+fun (m : Message) =>
+let e = Nil {Message} in
+Cons {Message} m e
+
+let addfunds_tag = "AddFunds"
+
+(**sfe*)
+let nil_message = Nil {Message}
+let zil_bystr20_uint128 = @list_zip ByStr20 Uint128
+let foldl_bystr20_uint128_pair = @list_foldl (Pair ByStr20 Uint128) (List Message)
+let from_pair_bystr20 = @fst ByStr20 Uint128
+let from_pair_uint128 = @snd ByStr20 Uint128
+
+let create_transfer_messages: ByStr20 -> List ByStr20 -> List Uint128 -> List Message = 
+    fun(current_impl: ByStr20) =>
+	fun(addresses: List ByStr20) => 
+	fun(amounts: List Uint128) =>
+    let zipped = zil_bystr20_uint128 addresses amounts in
+    let insert = 
+      fun(tail: List Message) => 
+      fun(address_amount_pair: Pair ByStr20 Uint128) => 
+        let address = from_pair_bystr20 address_amount_pair in 
+        let amt = from_pair_uint128 address_amount_pair in 
+        let head = {_tag: transfer_tag; _recipient: current_impl; _amount: zero; to: address; amount: amt} in
+        Cons {Message} head tail
+		in foldl_bystr20_uint128_pair insert nil_message zipped
+
+let create_pay_zil_messages: List ByStr20 -> List Uint128 -> List Message = 
+    fun(addresses: List ByStr20) => 
+    fun(amounts: List Uint128) =>
+    let zipped = zil_bystr20_uint128 addresses amounts in
+    let insert = 
+        fun(tail: List Message) => 
+        fun(address_amount_pair: Pair ByStr20 Uint128) => 
+        let address = from_pair_bystr20 address_amount_pair in 
+        let amt = from_pair_uint128 address_amount_pair in 
+        let head = {_tag: addfunds_tag; _recipient: address; _amount: amt} in
+        Cons {Message} head tail
+        in foldl_bystr20_uint128_pair insert nil_message zipped
+
+contract TokenPayment(
+    init_admin: ByStr20,
+    current_impl: ByStr20
+)
+(* Current contract admin *)
+field contractadmin: ByStr20  = init_admin
+(* Admin that can be claimed by existing address *)
+field stagingcontractadmin: Option ByStr20 = None {ByStr20}
+
+procedure ThrowError(err: Error)
+    e = make_error err;
+    throw e
+end
+procedure IsAdmin(initiator: ByStr20)
+    contractadmin_tmp <- contractadmin;
+    is_admin = builtin eq initiator contractadmin_tmp;
+    match is_admin with
+    | True  =>
+    | False =>
+        e = AdminValidationFailed;
+        ThrowError e
+    end
+end
+(* Update staged admin *)
+transition UpdateAdmin(admin: ByStr20)
+    IsAdmin _sender;
+    staging_admin = Some {ByStr20} admin;
+    stagingcontractadmin := staging_admin
+end
+(* Staged admin can claim the staged admin and become admin *)
+transition ClaimAdmin()
+    staging_admin <- stagingcontractadmin;
+    match staging_admin with
+    | Some admin =>
+        is_valid = builtin eq _sender admin;
+        match is_valid with
+        | True =>
+            contractadmin := admin;
+            staging_admin = None {ByStr20};
+            stagingcontractadmin := staging_admin;
+            e = { _eventname: "ClaimAdmin"; new_admin: admin };
+            event e
+        | False =>
+            e = StagingAdminValidationFailed;
+            ThrowError e
+        end
+    | None =>
+        e = StagingAdminNotExist;
+        ThrowError e
+    end
+end
+(* get back remaining zrc2 tokens and all zils *)
+transition DrainContractBalance(amt: Uint128)
+    IsAdmin _sender;
+    bal <- _balance;
+    msg = {_tag: transfer_tag; _recipient: current_impl; _amount: zero; to: _sender; amount: amt};
+    one_m = one_msg msg;
+    zil_back = {_tag: addfunds_tag; _recipient: _sender; _amount: bal};
+    msgs = Cons {Message} zil_back one_m;
+    send msgs;
+    e = { _eventname: "DrainContractBalance"; to: _sender; amount: amt};
+    event e
+end
+(* dummy to be able to send the tokens back to admin *)
+transition TransferSuccessCallBack(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+end
+(* accepts tokens from implementation *)
+transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: Uint128)
+    is_right_implementation = builtin eq _sender current_impl;
+    match is_right_implementation with
+    | True  =>
+    | False =>
+        e = WrongTokenImplementationAddress;
+        ThrowError e
+    end
+end
+(* add any amount of funds to the contract *)
+transition AddFunds()
+    accept;
+    e = { _eventname : "Funds deposit "; funder : _sender };
+    event e
+end
+(* send payments to zrc2 compatible *)
+transition Pay(addresses: List ByStr20, amts: List Uint128)
+    IsAdmin _sender;
+    msgs = create_transfer_messages current_impl addresses amts;
+    send msgs;
+    e = { _eventname: "Pay"; addresses: addresses; amts: amts};
+    event e
+end
+(* sends zils *)
+transition PayZil(addresses: List ByStr20, amts: List Uint128)
+    IsAdmin _sender;
+    msgs = create_pay_zil_messages addresses amts;
+    send msgs;
+    e = { _eventname: "PayZil"; addresses: addresses; amts: amts};
+    event e
+end 
