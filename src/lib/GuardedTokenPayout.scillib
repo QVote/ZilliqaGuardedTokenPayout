@@ -3,6 +3,10 @@ type Error =
 | StagingAdminNotExist
 | StagingAdminValidationFailed
 | WrongTokenImplementationAddress
+| ThisIsNotTokenRecipient
+| NoMoreBlockLimitsImposed
+| BlockNumberNotYetAtTarget
+| ThereAreStillScheduledPayouts
 
 let make_error =
 fun (result: Error) =>
@@ -12,13 +16,15 @@ match result with
 | StagingAdminNotExist => Int32 -2
 | StagingAdminValidationFailed => Int32 -3
 | WrongTokenImplementationAddress => Int32 -4
+| ThisIsNotTokenRecipient => Int32 -5
+| NoMoreBlockLimitsImposed => Int32 -6
+| BlockNumberNotYetAtTarget => Int32 -7
+| ThereAreStillScheduledPayouts => Int32 -8
 end
 in
 { _exception: "Error"; code: result_code }
 
 let transfer_tag = "Transfer"
-
-let addfunds_tag = "AddFunds"
 
 let one_msg =
 fun (m : Message) =>
@@ -26,3 +32,9 @@ let e = Nil {Message} in
 Cons {Message} m e
 
 let zero = Uint128 0
+
+let bnum_list_head = @list_head BNum
+
+let bnum_list_tail = @list_tail BNum
+
+let nil_bnum_list = Nil {BNum}
