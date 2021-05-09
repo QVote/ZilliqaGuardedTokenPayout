@@ -1,6 +1,6 @@
 scilla_version 0
 import ListUtils IntUtils PairUtils
-library TokenPayment
+library GuardedTokenPayout
 
 type Error =
 | AdminValidationFailed
@@ -30,7 +30,6 @@ Cons {Message} m e
 
 let addfunds_tag = "AddFunds"
 
-(**sfe*)
 let nil_message = Nil {Message}
 let zil_bystr20_uint128 = @list_zip ByStr20 Uint128
 let foldl_bystr20_uint128_pair = @list_foldl (Pair ByStr20 Uint128) (List Message)
@@ -64,12 +63,14 @@ let create_pay_zil_messages: List ByStr20 -> List Uint128 -> List Message =
         Cons {Message} head tail
         in foldl_bystr20_uint128_pair insert nil_message zipped
 
-contract TokenPayment(
+contract GuardedTokenPayout(
     init_admin: ByStr20,
-    current_impl: ByStr20
+    init_token_impl: ByStr20
 )
 (* Current contract admin *)
 field contractadmin: ByStr20  = init_admin
+(* Current token implementation *)
+field token_impl: ByStr20  = init_token_impl
 (* Admin that can be claimed by existing address *)
 field stagingcontractadmin: Option ByStr20 = None {ByStr20}
 
@@ -92,6 +93,11 @@ transition UpdateAdmin(admin: ByStr20)
     IsAdmin _sender;
     staging_admin = Some {ByStr20} admin;
     stagingcontractadmin := staging_admin
+end
+(* Update token implementation *)
+transition UpdateTokenImplementation(new_impl: ByStr20)
+    IsAdmin _sender;
+    token_impl := new_impl
 end
 (* Staged admin can claim the staged admin and become admin *)
 transition ClaimAdmin()
@@ -140,25 +146,3 @@ transition RecipientAcceptTransfer(sender: ByStr20, recipient: ByStr20, amount: 
         ThrowError e
     end
 end
-(* add any amount of funds to the contract *)
-transition AddFunds()
-    accept;
-    e = { _eventname : "Funds deposit "; funder : _sender };
-    event e
-end
-(* send payments to zrc2 compatible *)
-transition Pay(addresses: List ByStr20, amts: List Uint128)
-    IsAdmin _sender;
-    msgs = create_transfer_messages current_impl addresses amts;
-    send msgs;
-    e = { _eventname: "Pay"; addresses: addresses; amts: amts};
-    event e
-end
-(* sends zils *)
-transition PayZil(addresses: List ByStr20, amts: List Uint128)
-    IsAdmin _sender;
-    msgs = create_pay_zil_messages addresses amts;
-    send msgs;
-    e = { _eventname: "PayZil"; addresses: addresses; amts: amts};
-    event e
-end 
