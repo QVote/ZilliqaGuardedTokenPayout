@@ -14,10 +14,10 @@ library GuardedTokenPayout
 } from "./lib/GuardedTokenPayout.scillib"
 
 contract GuardedTokenPayout(
-    init_admin: ByStr20,
+    init_admin: ByStr20, (* The admin is the one payed out *)
     init_token_impl: ByStr20,
-    fixed_payout_amount: Uint128,
-    init_payout_schedule: List BNum
+    fixed_payout_amount: Uint128, (* 10 qa *)
+    init_payout_schedule: List BNum (* increasing BNum *)
 )
 (* Current contract admin *)
 field contractadmin: ByStr20  = init_admin
@@ -169,3 +169,11 @@ transition Withdraw()
         ThrowError e
     end
 end
+
+(*
+    1. Deploy contract with init admin as beneficiary with fixed payment amount and the schedule
+    2. Fund the contract to the total number of payment <- minter of PLAX
+
+    3. The admin/beneficary WAITS -> until the first scheduled BNum is actually on the blockchain
+
+*)
